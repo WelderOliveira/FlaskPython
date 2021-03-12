@@ -1,54 +1,39 @@
-from flask import Flask, request
-from flask_restful import Resource, Api
-from habilidades import Habilidades
-import json
+from sqlalchemy import create_engine, Column, Integer, String, ForeignKey
+from sqlalchemy.orm import scoped_session, sessionmaker, relationship
+from sqlalchemy.ext.declarative import declarative_base
 
-app = Flask(__name__)
-api = Api(app)
+engine = create_engine('sqlite:///atividades.db', convert_unicode=True)
+db_session = scoped_session(sessionmaker(autocommit=False, bind=engine))
 
-desenvolvedores = [
-    {'nome': 'Rafael',
-     'habilidades': ['Python', 'Flask']
-     },
-    {'nome': 'Galleani',
-     'habilidades': ['Python', 'Django']}
-]
+Base = declarative_base()
+Base.query = db_session.query_property()
 
-class Desenvolvedor(Resource):
-    def get(self, id):
-        try:
-            response = desenvolvedores[id]
-        except IndexError:
-            mensagem = f'Desenvolvedor de ID {id} não existe.'
-            response = {'status': 'erro', 'mensagem': mensagem}
-        except Exception:
-            mensagem = 'Erro desconhecido. Procure o Administrado da API'
-            response = {'status': 'erro', 'mensagem': mensagem}
-        return response
-    def post(self):
-        return
-    def delete(self, id):
-        desenvolvedores.pop(id)
-        return {'status': 'sucesso', 'mensagem': 'Registro Excluido'}
-    def put(self, id):
-        dados = json.loads(request.data)
-        desenvolvedores[id] = dados
-        return dados
+class Pessoas(Base):
+    __tablename__ = 'pessoas'
+    id = Column(Integer, primary_key=True)
+    nome = Column(String(40), index=True)
+    idade = Column(Integer)
 
-class ListaDesenvolvedores(Resource):
-    def get(self):
-        return desenvolvedores
-    def post(self):
-        dados = json.loads(request.data)
-        posicao = len(desenvolvedores)
-        dados['id'] = posicao
-        desenvolvedores.append(dados)
-        return {'status': 'sucesso', 'mensagem': 'Registro inserido'}
+    def __repr__(self): #Função para representar Objetos
+        return f'<Pessoa {self.nome}>'
 
-api.add_resource(Desenvolvedor, '/dev/<int:id>/')
-api.add_resource(ListaDesenvolvedores, '/dev/')
-api.add_resource(Habilidades, '/habilidades/')
+    def save(self):
+        db_session.add(self)
+        db_session.commit()
 
+    def delete(self):
+        db_session.delete(self)
+        db_session.commit()
+
+class Atividades(Base):
+    __tablename__ = 'atividades'
+    id = Column(Integer, primary_key=True)
+    nome = Column(String(80))
+    pessoa_id = Column(Integer, ForeignKey('pessoas.id'))
+    pessoa = relationship("Pessoas")
+
+def init_db():
+    Base.metadata.create_all(bind=engine)
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    init_db()
